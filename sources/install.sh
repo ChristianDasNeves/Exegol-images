@@ -34,7 +34,7 @@ function fapt-noexit() {
   # This function tries the same thing as fapt but doesn't exit in case something's wrong.
   # Example: a package exists in amd64 but not arm64. I didn't find a way of knowing that beforehand.
   colorecho "Installing (no-exit) apt package(s): $@"
-  apt-get install -y --no-install-recommends "$@" || echo -e "${RED}[EXEGOL ERROR] Package(s) $@ probably doesn't exist for architecture $(uname -m), or no installation candidate was found...${NOCOLOR}" 2>&1
+  apt-get install -y --no-install-recommends "$@" || echo -e "${RED}[EXEGOL ERROR] Package(s) $@ probably doesn't exist for architecture $(uname -m), or no installation candidate was found, or some other error...${NOCOLOR}" 2>&1
 }
 
 function python-pip() {
@@ -61,7 +61,7 @@ function install_ohmyzsh() {
   colorecho "Installing oh-my-zsh, config, history, aliases"
   sh -c "$(curl -fsSL https://raw.githubusercontent.com/ohmyzsh/ohmyzsh/master/tools/install.sh)"
   cp -v /root/sources/zsh/history ~/.zsh_history
-  cp -v /root/sources/zsh/aliases /opt/.zsh_aliases
+  cp -v /root/sources/zsh/aliases /opt/.exegol_aliases
   cp -v /root/sources/zsh/zshrc ~/.zshrc
   git -C ~/.oh-my-zsh/custom/plugins/ clone https://github.com/zsh-users/zsh-autosuggestions
   git -C ~/.oh-my-zsh/custom/plugins/ clone https://github.com/zsh-users/zsh-syntax-highlighting
@@ -83,6 +83,21 @@ function tmux() {
   apt-get -y install tmux
   cp -v /root/sources/tmux/tmux.conf ~/.tmux.conf
   touch ~/.hushlogin
+}
+
+function install_gowitness() {
+  colorecho "Installing gowitness"
+  /usr/local/go/bin/go install github.com/sensepost/gowitness@latest
+}
+
+function install_goshs(){
+  colorecho "Installing goshs"
+  /usr/local/go/bin/go install github.com/patrickhener/goshs@latest
+}
+
+function install_sslyze(){
+  colorecho "Installing sslyze"
+  python3 -m pip install sslyze
 }
 
 function install_responder() {
@@ -176,9 +191,7 @@ function install_EyeWitness() {
 
 function install_wafw00f() {
   colorecho "Installing wafw00f"
-  git -C /opt/tools/ clone https://github.com/EnableSecurity/wafw00f
-  cd /opt/tools/wafw00f
-  python setup.py install
+  python3 -m pip install wafw00F
 }
 
 function JSParser() {
@@ -308,6 +321,7 @@ function sprayhound() {
 
 function install_impacket() {
   colorecho "Installing Impacket scripts"
+  apt-get -y install libffi-dev
   git -C /opt/tools/ clone https://github.com/ShutdownRepo/impacket
   git -C /opt/tools/impacket checkout exegol
 
@@ -353,15 +367,7 @@ function install_bloodhound.py() {
 function neo4j_install() {
   colorecho "Installing neo4j"
   fapt openjdk-11-jre
-  if [[ $(uname -m) = 'x86_64' ]]
-  then
-    update-java-alternatives --jre --set java-1.11.0-openjdk-amd64
-  elif [[ $(uname -m) = 'aarch64' ]]
-  then
-    update-java-alternatives --jre --set java-1.11.0-openjdk-arm64
-  else
-    criticalecho "This installation function doesn't support architecture $(uname -m)"
-  fi
+  update-java-alternatives --jre --set $(find /usr/lib/jvm/ -maxdepth 1 -type l -name 'java-1.11.0-openjdk*' -printf '%P')
   wget -O - https://debian.neo4j.com/neotechnology.gpg.key | apt-key add -
   echo 'deb https://debian.neo4j.com stable latest' | tee /etc/apt/sources.list.d/neo4j.list
   apt-get update
@@ -433,7 +439,7 @@ function install_empire() {
 function install_starkiller() {
   colorecho "Installing Starkiller"
   apt-get -y install libfuse2
-  version=$(curl -s https://github.com/BC-SECURITY/Starkiller/tags|grep /releases/tag/v -m1 |grep -Eo 'v[0-9]+\.[0-9]+\.[0-9]+'|cut -d 'v' -f2)
+  version=$(curl -s https://github.com/BC-SECURITY/Starkiller/tags|grep /releases/tag/v -m1 |grep -Eo 'v[0-9]+\.[0-9]+\.[0-9]+'|cut -d 'v' -f2|head -n 1)
   mkdir /opt/tools/starkiller
   wget -O /opt/tools/starkiller/starkiller.AppImage https://github.com/BC-SECURITY/Starkiller/releases/download/v$version/starkiller-$version.AppImage
   chmod +x /opt/tools/starkiller/starkiller.AppImage
@@ -474,7 +480,7 @@ function install_subfinder() {
 function install_gf() {
   go install github.com/tomnomnom/gf@latest
   # Enable autocompletion
-  echo 'complete -W "$(gf -list)" gf' >> ~/.zshrc
+  echo 'source $GOPATH/pkg/mod/github.com/tomnomnom/gf@*/gf-completion.zsh' >> ~/.zshrc
   cp -r /root/go/pkg/mod/github.com/tomnomnom/gf@*/examples ~/.gf
   # Add patterns from 1ndianl33t
   git -C /opt/tools/ clone https://github.com/1ndianl33t/Gf-Patterns
@@ -728,6 +734,9 @@ function install_bat() {
   elif [[ $(uname -m) = 'aarch64' ]]
   then
     wget -O /tmp/bat.deb https://github.com/sharkdp/bat/releases/download/v$version/bat_$version\_arm64.deb
+  elif [[ $(uname -m) = 'armv7l' ]]
+  then
+    wget -O /tmp/bat.deb https://github.com/sharkdp/bat/releases/download/v$version/bat_$version\_armhf.deb
   else
     criticalecho "This installation function doesn't support architecture $(uname -m)"
   fi
@@ -892,6 +901,7 @@ function arsenal() {
 function install_tldr() {
   colorecho "Installing tldr"
   apt-get install -y tldr
+  mkdir -p ~/.local/share/tldr
   tldr -u
 }
 
@@ -907,6 +917,10 @@ function bloodhound_v4() {
   then
     fapt libgbm1
     ln -s /opt/tools/BloodHound4/BloodHound-linux-arm64/BloodHound /opt/tools/BloodHound4/BloodHound
+  elif [[ $(uname -m) = 'armv7l' ]]
+  then
+    fapt libgbm1
+    ln -s /opt/tools/BloodHound4/BloodHound-linux-armv7l/BloodHound /opt/tools/BloodHound4/BloodHound
   else
     criticalecho "This installation function doesn't support architecture $(uname -m)"
   fi
@@ -1085,11 +1099,8 @@ function install_ida() {
     chmod +x /tmp/idafree77_linux.run
     /tmp/idafree77_linux.run --mode unattended --prefix /opt/tools/idafree-7.7
     rm /tmp/idafree77_linux.run
-  elif [[ $(uname -m) = 'aarch64' ]]
-  then
-    criticalecho-noexit "This installation function doesn't support architecture $(uname -m), IDA Free only supports x86/x64"
   else
-    criticalecho "This installation function doesn't support architecture $(uname -m)"
+    criticalecho-noexit "This installation function doesn't support architecture $(uname -m), IDA Free only supports x86/x64"
   fi
 }
 
@@ -1175,9 +1186,6 @@ function windapsearch-go() {
   if [[ $(uname -m) = 'x86_64' ]]
   then
     wget -O /opt/tools/bin/windapsearch "$(curl -s https://github.com/ropnop/go-windapsearch/releases/latest/ | grep -o '"[^"]*"' | tr -d '"' | sed 's/tag/download/')/windapsearch-linux-amd64"
-  elif [[ $(uname -m) = 'aarch64' ]]
-  then
-    criticalecho-noexit "This installation function doesn't support architecture $(uname -m)"
   else
     criticalecho "This installation function doesn't support architecture $(uname -m)"
   fi
@@ -1225,6 +1233,9 @@ function kubectl(){
   elif [[ $(uname -m) = 'aarch64' ]]
   then
     curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/arm64/kubectl"
+  elif [[ $(uname -m) = 'armv7l' ]]
+  then
+    curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/arm/kubectl"
   else
     criticalecho "This installation function doesn't support architecture $(uname -m)"
   fi
@@ -1458,6 +1469,9 @@ function install_ngrok() {
   elif [[ $(uname -m) = 'aarch64' ]]
   then
     wget -O /tmp/ngrok.zip https://bin.equinox.io/c/4VmDzA7iaHb/ngrok-stable-linux-arm64.zip
+  elif [[ $(uname -m) = 'armv7l' ]]
+  then
+    wget -O /tmp/ngrok.zip https://bin.equinox.io/c/4VmDzA7iaHb/ngrok-stable-linux-arm.zip
   else
     criticalecho "This installation function doesn't support architecture $(uname -m)"
   fi
@@ -1803,9 +1817,9 @@ function install_kerbrute() {
 
 function install_searchsploit() {
   colorecho "Installing Searchsploit"
-  git clone https://github.com/offensive-security/exploitdb.git /opt/exploit-database
-  ln -sf /opt/exploit-database/searchsploit /usr/local/bin/searchsploit
-  cp -n /opt/exploit-database/.searchsploit_rc ~/
+  git clone https://github.com/offensive-security/exploitdb.git /opt/exploitdb
+  ln -sf /opt/exploitdb/searchsploit /usr/local/bin/searchsploit
+  cp -n /opt/exploitdb/.searchsploit_rc ~/
   sed -i 's/\(.*[pP]aper.*\)/#\1/' ~/.searchsploit_rc
   searchsploit -u
 }
@@ -1881,6 +1895,9 @@ function install_go(){
   elif [[ $(uname -m) = 'aarch64' ]]
   then
     wget -O /tmp/go.tar.gz https://go.dev/dl/go1.18.2.linux-arm64.tar.gz
+  elif [[ $(uname -m) = 'armv7l' ]]
+  then
+    wget -O /tmp/go.tar.gz https://go.dev/dl/go1.18.2.linux-armv6l.tar.gz
   else
     criticalecho "This installation function doesn't support architecture $(uname -m)"
   fi
@@ -2020,10 +2037,12 @@ function install_base() {
   fapt python2-dev                # Python 2 language (dev version)
   fapt python3-dev                # Python 3 language (dev version)
   fapt python3-venv
+  fapt libffi-dev
   install_rust_cargo
   ln -s /usr/bin/python2.7 /usr/bin/python  # fix shit
   python-pip                      # Pip
   fapt python3-pip                # Pip
+  python3 pip install --upgrade pip
   filesystem
   set_env
   locales
@@ -2143,6 +2162,7 @@ function install_most_used_tools() {
 
 # Package dedicated to offensive miscellaneous tools
 function install_misc_tools() {
+  install_goshs                   # Web uploader/downloader page
   install_searchsploit            # Exploitdb local search engine
   fapt rlwrap                     # Reverse shell utility
   install_shellerator             # Reverse shell generator
@@ -2281,6 +2301,7 @@ function install_web_tools() {
   install_testssl                 # SSL/TLS scanner
   fapt sslscan                    # SSL/TLS scanner
   install_tls-scanner             # SSL/TLS scanner
+  install_sslyze                  # SSL/TLS scanner
   fapt weevely                    # Awesome secure and light PHP webshell
   install_CloudFail                       # Cloudflare misconfiguration detector
   install_EyeWitness                      # Website screenshoter
@@ -2288,6 +2309,7 @@ function install_web_tools() {
   install_wafw00f                         # Waf detector
   CORScanner                      # CORS misconfiguration detector
   hakrawler                       # Web endpoint discovery
+  install_gowitness               # Web screenshot utility
   LinkFinder                      # Discovers endpoint JS files
   timing_attack                   # Cryptocraphic timing attack
   install_updog                           # New HTTPServer
@@ -2596,7 +2618,7 @@ else
       echo "[!] Careful : this script is supposed to be run inside a docker/VM, do not run this on your host unless you know what you are doing and have done backups. You are warned :)"
       echo "[*] Sleeping 30 seconds, just in case... You can still stop this"
       echo -e "${NOCOLOR}"
-      sleep 30
+#      sleep 30
       "$@"
     fi
   else
